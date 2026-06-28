@@ -1,0 +1,62 @@
+# IDS 2025-26 - BI / visualization layer (PrestoDB -> Superset)
+#
+# Superset cannot read Cassandra directly, so PrestoDB sits in between and
+# exposes the cluster as SQL (see Project.docx: "Cassandra ... connected using
+# PrestoDB"). Data path:
+#
+#     Cassandra (twitter.edges)  ->  PrestoDB (catalog "cassandra")  ->  Superset
+#
+# This compose attaches to the network created by ../cassandra/docker-compose.yml,
+# so the Cassandra cluster MUST be up first:
+#     cd ../cassandra && docker compose up -d
+#     cd ../bi        && docker compose up -d
+#
+# Then open Superset at http://localhost:8088 (admin / admin) and add a database
+# with SQLAlchemy URI:   presto://presto:8080/cassandra
+name: ids-bi
+
+services:
+  # PrestoDB query engine (official image). Serves on :8080; we only add the
+  # Cassandra catalog. It joins the Cassandra network so it can reach
+  # cas1/cas2/cas3 by name. Default heap is 1 GB (etc/jvm.config).
+  presto:
+    image: prestodb/presto:latest
+    container_name: presto
+    hostname: presto
+    ports:
+      - "8080:8080"          # Presto UI + REST, also used by Superset
+    volumes:
+      - ./presto/cassandra.properties:/opt/presto-server/etc/catalog/cassandra.properties:ro
+    mem_limit: 2g
+    restart: unless-stopped
+
+  # Apache Superset (lean single-container demo: built-in SQLite metadata DB,
+  # no Celery/Redis -- enough to build and view charts). The image adds the
+  # PyHive Presto driver (see superset/Dockerfile).
+  superset:
+    build: ./superset
+    image: ids-superset:latest
+    container_name: superset
+    depends_on:
+      - presto
+    environment:
+      SUPERSET_SECRET_KEY: "ids-project-superset-secret-change-me"
+      # skip the version-check banner / telemetry noise
+      SUPERSET_LOAD_EXAMPLES: "no"
+    ports:
+      - "8088:8088"          # Superset web UI
+    volumes:
+      - superset_home:/app/superset_home   # persists dashboards, db connection
+    mem_limit: 2g
+    # First boot: migrate metadata DB, create admin, init roles, then serve.
+    command: ["/app/superset-bootstrap.sh"]
+
+volumes:
+  superset_home:
+
+# Reuse the network created by the Cassandra module so Presto can reach the
+# nodes. Bring up ../cassandra first; that creates this network.
+networks:
+  default:
+    name: ids-twitter-cassandra_default
+    external: true

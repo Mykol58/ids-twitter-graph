@@ -1,0 +1,21 @@
+# Source datasets — not redistributed; tweets1.json (222 MB) exceeds GitHub's
+# file limit, and the project rules say no data files in the submission.
+# The Cassandra image bakes in edges data, so the stack runs without these.
+Data/
+
+# Downloaded DataStax bulk loader (pulled in only at image build time)
+cassandra/dsbulk/
+
+# Build artifacts copied into the image context at build time
+cassandra/image/edges1.json
+cassandra/image/dsbulk/
+
+# Course handout docs (spec/tutorial) — not redistributed
+*.docx.pdf
+*.docx
+~$*
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+*.swp

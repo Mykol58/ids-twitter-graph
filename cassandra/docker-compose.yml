@@ -1,0 +1,72 @@
+# IDS 2025-26 - Cassandra storage (Twitter `edges` graph)
+#
+# Self-contained 3-node / RF=3 cluster with the data PRELOADED. Everything
+# (loader, schema, edges data, healthcheck) is baked into the published image
+# `mikelez/ids-twitter-cassandra`, so this is the ONLY file needed to run it and
+# it contains NO data files (per Project.docx):
+#
+#     docker compose up -d
+#
+# Nodes join one at a time (chained healthchecks) to avoid bootstrap token
+# collisions; the one-shot `loader` creates the schema and loads the edges once
+# after all three nodes are up, then exits.
+name: ids-twitter-cassandra
+
+x-node: &node
+  image: mikelez/ids-twitter-cassandra:latest
+  environment: &node-env
+    CASSANDRA_CLUSTER_NAME: "ids-twitter-graph"
+    CASSANDRA_SEEDS: "cas1"
+    CASSANDRA_ENDPOINT_SNITCH: GossipingPropertyFileSnitch
+    CASSANDRA_DC: datacenter1
+    MAX_HEAP_SIZE: "512M"
+    HEAP_NEWSIZE: "128M"
+  mem_limit: 1500m
+
+services:
+  cas1:
+    <<: *node
+    container_name: cas1
+    hostname: cas1
+    ports:
+      - "9042:9042"      # CQL exposed to the host
+    volumes:
+      - cas1_data:/var/lib/cassandra
+
+  cas2:
+    <<: *node
+    container_name: cas2
+    hostname: cas2
+    depends_on:
+      cas1:
+        condition: service_healthy
+    volumes:
+      - cas2_data:/var/lib/cassandra
+
+  cas3:
+    <<: *node
+    container_name: cas3
+    hostname: cas3
+    depends_on:
+      cas2:
+        condition: service_healthy
+    volumes:
+      - cas3_data:/var/lib/cassandra
+
+  loader:
+    image: mikelez/ids-twitter-cassandra:latest
+    container_name: ids-loader
+    depends_on:
+      cas3:
+        condition: service_healthy
+    environment:
+      CASSANDRA_HOST: cas1
+    entrypoint: ["/opt/ids/load.sh"]
+    healthcheck:
+      disable: true
+    restart: "no"
+
+volumes:
+  cas1_data:
+  cas2_data:
+  cas3_data:
