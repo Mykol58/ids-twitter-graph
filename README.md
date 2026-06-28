@@ -1,6 +1,6 @@
 # IDS 2025-26 — Twitter graph: storage & visualization
 
-Course project for *Infrastructures for Data Science (IDS)*. It stores a Twitter
+Course project for *Infrastructures for Data Science (IDS)* (2025-26). It stores a Twitter
 **follow/follower graph** in a distributed **Apache Cassandra** cluster and
 visualizes it in **Apache Superset**, bridged by **PrestoDB** (Superset has no
 native Cassandra connector).
